@@ -89,15 +89,31 @@ def run_user_input_mode() -> None:
 
 
 def run_json_mode() -> None:
-    """Loads and displays Mini NPU data from a JSON file."""
+    """Runs the simulator with data loaded from a JSON file."""
     data = load_data("data.json")
 
     filters = data.get("filters")
     patterns = data.get("patterns")
 
-    print("필터 목록:", filters.keys())
-    print("패턴 목록:", patterns.keys())
+    size_5_filters = filters.get("size_5")
 
+    cross_filter = size_5_filters.get("cross")
+    x_filter = size_5_filters.get("x")
+
+    pattern_data = patterns.get("size_5_1")
+
+    pattern = pattern_data.get("input") # 실제 5x5 행렬
+    expected = pattern_data.get("expected") # 정답 라벨
+
+    score_cross = mac(pattern, cross_filter)
+    score_x = mac(pattern, x_filter)
+
+    prediction = classify_scores(score_cross, score_x)
+
+    print(f"Cross MAC 점수: {score_cross}")
+    print(f"X MAC 점수: {score_x}")
+    print(f"예상 결과: {expected}")
+    print(f"판정 결과: {prediction}")
 
 def main() -> None:
     """Runs the Mini NPU simulator."""
