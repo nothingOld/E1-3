@@ -1,5 +1,13 @@
-# 1e-9 = 0.000000001
-EPSILON = 1e-9
+import json
+
+
+EPSILON = 1e-9  # 1e-9 = 0.000000001
+
+
+def load_data(file_path: str) -> dict:
+    """Loads JSON data from a file."""
+    with open(file_path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
 def read_matrix(name: str, size: int) -> list[list[float]]:
@@ -32,10 +40,11 @@ def read_matrix(name: str, size: int) -> list[list[float]]:
 
     return matrix
 
+
 def mac(
     pattern: list[list[float]],
-    filter_matrix: list[list[float]]
-    ) -> float:
+    filter_matrix: list[list[float]],
+) -> float:
     """Calculates the MAC score of a pattern and filter."""
     total = 0.0
 
@@ -51,8 +60,7 @@ def mac(
 
 def classify_scores(score_cross: float, score_x: float) -> str:
     """Classifies a pattern based on two MAC scores."""
-
-    # 음수가 될 수도 있지만 두 값이 얼마나 떨어져 있는가 확인을 위해 절대값 사용
+    # 두 점수의 차이를 비교하므로 절댓값을 사용한다.
     if abs(score_cross - score_x) < EPSILON:
         return "UNDECIDED"
 
@@ -62,12 +70,12 @@ def classify_scores(score_cross: float, score_x: float) -> str:
     return "X"
 
 
-def main() -> None:
-    """Runs the Mini NPU simulator."""
+def run_user_input_mode() -> None:
+    """Runs the simulator with user-entered 3x3 matrices."""
     size = 3
 
-    filter_a = read_matrix("필터 A", size)
-    filter_b = read_matrix("필터 B", size)
+    filter_a = read_matrix("필터 A (Cross)", size)
+    filter_b = read_matrix("필터 B (X)", size)
     pattern = read_matrix("패턴", size)
 
     score_a = mac(pattern, filter_a)
@@ -78,6 +86,22 @@ def main() -> None:
     print(f"필터 A MAC 점수: {score_a}")
     print(f"필터 B MAC 점수: {score_b}")
     print(f"판정 결과: {prediction}")
+
+
+def main() -> None:
+    """Runs the Mini NPU simulator."""
+    print("1. 사용자 입력 모드")
+    print("2. JSON 파일 모드")
+
+    choice = input("모드를 선택하세요: ").strip()
+
+    if choice == "1":
+        run_user_input_mode()
+    elif choice == "2":
+        print("JSON 파일 모드는 다음 단계에서 구현합니다.")
+    else:
+        print("올바른 모드를 선택하세요.")
+
 
 if __name__ == "__main__":
     main()
