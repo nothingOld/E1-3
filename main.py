@@ -115,6 +115,10 @@ def run_json_mode() -> None:
     print(f"예상 결과: {expected}")
     print(f"판정 결과: {prediction}")
 
+    print("Cross 필터:", cross_filter)
+    print("X 필터:", x_filter)
+    print("패턴:", pattern)
+
 def main() -> None:
     """Runs the Mini NPU simulator."""
     print("1. 사용자 입력 모드")
