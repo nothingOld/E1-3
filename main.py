@@ -88,6 +88,17 @@ def run_user_input_mode() -> None:
     print(f"판정 결과: {prediction}")
 
 
+def run_json_mode() -> None:
+    """Loads and displays Mini NPU data from a JSON file."""
+    data = load_data("data.json")
+
+    filters = data.get("filters")
+    patterns = data.get("patterns")
+
+    print("필터 목록:", filters.keys())
+    print("패턴 목록:", patterns.keys())
+
+
 def main() -> None:
     """Runs the Mini NPU simulator."""
     print("1. 사용자 입력 모드")
@@ -98,7 +109,7 @@ def main() -> None:
     if choice == "1":
         run_user_input_mode()
     elif choice == "2":
-        print("JSON 파일 모드는 다음 단계에서 구현합니다.")
+        run_json_mode()
     else:
         print("올바른 모드를 선택하세요.")
 
