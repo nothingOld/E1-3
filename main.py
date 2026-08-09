@@ -1,3 +1,4 @@
+# 1e-9 = 0.000000001
 EPSILON = 1e-9
 
 
@@ -49,14 +50,25 @@ def main() -> None:
         [1.0, 0.0, 1.0],
     ]
 
-    score_cross = mac(pattern, cross_filter)
-    score_x = mac(pattern, x_filter)
+    # score_cross = mac(pattern, cross_filter)
+    # score_x = mac(pattern, x_filter)
 
-    prediction = classify_scores(score_cross, score_x)
+    # prediction = classify_scores(score_cross, score_x)
 
-    print(f"Cross score: {score_cross}")
-    print(f"X score: {score_x}")
-    print(f"Prediction: {prediction}")
+    # print(f"Cross score: {score_cross}")
+    # print(f"X score: {score_x}")
+    # print(f"Prediction: {prediction}")
+
+    test_score_cross = 5.0
+    test_score_x = 5.0 + 1e-10
+
+    test_prediction = classify_scores(
+        test_score_cross,
+        test_score_x,
+    )
+
+    print(test_score_cross, test_score_x, EPSILON)
+    print(test_prediction)
 
 
 if __name__ == "__main__":
