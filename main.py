@@ -70,6 +70,22 @@ def classify_scores(score_cross: float, score_x: float) -> str:
     return "X"
 
 
+def normalize_label(label: str) -> str:
+    """Normalizes a classification label."""
+    normalized_label = label.strip().lower()
+
+    if normalized_label == "cross":
+        return "Cross"
+
+    if normalized_label == "x":
+        return "X"
+
+    if normalized_label == "undecided":
+        return "UNDECIDED"
+
+    return label
+
+
 def run_user_input_mode() -> None:
     """Runs the simulator with user-entered 3x3 matrices."""
     size = 3
@@ -100,24 +116,31 @@ def run_json_mode() -> None:
     cross_filter = size_5_filters.get("cross")
     x_filter = size_5_filters.get("x")
 
-    pattern_data = patterns.get("size_5_1")
+    for pattern_name, pattern_data in patterns.items():
+        if not pattern_name.startswith("size_5_"):
+            continue
 
-    pattern = pattern_data.get("input") # 실제 5x5 행렬
-    expected = pattern_data.get("expected") # 정답 라벨
+        pattern = pattern_data.get("input")
+        expected = normalize_label(pattern_data.get("expected"))
 
-    score_cross = mac(pattern, cross_filter)
-    score_x = mac(pattern, x_filter)
+        score_cross = mac(pattern, cross_filter)
+        score_x = mac(pattern, x_filter)
 
-    prediction = classify_scores(score_cross, score_x)
+        prediction = classify_scores(score_cross, score_x)
 
-    print(f"Cross MAC 점수: {score_cross}")
-    print(f"X MAC 점수: {score_x}")
-    print(f"예상 결과: {expected}")
-    print(f"판정 결과: {prediction}")
+        is_correct = expected == prediction
 
-    print("Cross 필터:", cross_filter)
-    print("X 필터:", x_filter)
-    print("패턴:", pattern)
+        print(f"\n패턴: {pattern_name}")
+        print(f"Cross MAC 점수: {score_cross}")
+        print(f"X MAC 점수: {score_x}")
+        print(f"예상 결과: {expected}")
+        print(f"판정 결과: {prediction}")
+
+        if is_correct:
+            print("결과: PASS")
+        else:
+            print("결과: FAIL")
+
 
 def main() -> None:
     """Runs the Mini NPU simulator."""
