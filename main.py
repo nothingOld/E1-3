@@ -111,14 +111,14 @@ def run_json_mode() -> None:
     filters = data.get("filters")
     patterns = data.get("patterns")
 
-    size_5_filters = filters.get("size_5")
-
-    cross_filter = size_5_filters.get("cross")
-    x_filter = size_5_filters.get("x")
-
     for pattern_name, pattern_data in patterns.items():
-        if not pattern_name.startswith("size_5_"):
-            continue
+        name_parts = pattern_name.split("_")
+        size_key = f"{name_parts[0]}_{name_parts[1]}"
+
+        filter_data = filters.get(size_key)
+
+        cross_filter = filter_data.get("cross")
+        x_filter = filter_data.get("x")
 
         pattern = pattern_data.get("input")
         expected = normalize_label(pattern_data.get("expected"))
@@ -127,7 +127,6 @@ def run_json_mode() -> None:
         score_x = mac(pattern, x_filter)
 
         prediction = classify_scores(score_cross, score_x)
-
         is_correct = expected == prediction
 
         print(f"\n패턴: {pattern_name}")
