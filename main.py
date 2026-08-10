@@ -49,7 +49,7 @@ def validate_matrix(matrix: list, size: int, name: str) -> None:
 
 
 def validate_data(data: dict) -> None:
-    """Validates JSON data structure and values."""
+    """Validates JSON data structure and filter values."""
     if not isinstance(data, dict):
         raise ValueError("JSON 최상위 데이터는 객체여야 합니다.")
 
@@ -110,71 +110,75 @@ def validate_data(data: dict) -> None:
             f"{size_name} X 필터",
         )
 
-    for pattern_name, pattern_data in patterns.items():
-        if not isinstance(pattern_data, dict):
-            raise ValueError(
-                f"'{pattern_name}' 패턴 형식이 올바르지 않습니다."
-            )
 
-        if "input" not in pattern_data:
-            raise ValueError(
-                f"'{pattern_name}'에 'input' 키가 없습니다."
-            )
-
-        if "expected" not in pattern_data:
-            raise ValueError(
-                f"'{pattern_name}'에 'expected' 키가 없습니다."
-            )
-
-        name_parts = pattern_name.split("_")
-
-        if (
-            len(name_parts) != 3
-            or name_parts[0] != "size"
-        ):
-            raise ValueError(
-                f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
-            )
-
-        try:
-            size = int(name_parts[1])
-        except ValueError:
-            raise ValueError(
-                f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
-            )
-
-        if size <= 0:
-            raise ValueError(
-                f"패턴 크기는 1 이상이어야 합니다: {pattern_name}"
-            )
-
-        size_key = f"size_{size}"
-
-        if size_key not in filters:
-            raise ValueError(
-                f"'{pattern_name}'에 사용할 "
-                f"'{size_key}' 필터가 없습니다."
-            )
-
-        validate_matrix(
-            pattern_data["input"],
-            size,
-            f"{pattern_name} 패턴",
+def validate_pattern(
+    pattern_name: str,
+    pattern_data: dict,
+    filters: dict,
+) -> str:
+    """Validates a pattern and returns its filter size key."""
+    if not isinstance(pattern_data, dict):
+        raise ValueError(
+            f"'{pattern_name}' 패턴 형식이 올바르지 않습니다."
         )
 
-        expected_value = pattern_data["expected"]
+    if "input" not in pattern_data:
+        raise ValueError(
+            f"'{pattern_name}'에 'input' 키가 없습니다."
+        )
 
-        if not isinstance(expected_value, str):
-            raise ValueError(
-                f"'{pattern_name}'의 'expected'는 문자열이어야 합니다."
-            )
+    if "expected" not in pattern_data:
+        raise ValueError(
+            f"'{pattern_name}'에 'expected' 키가 없습니다."
+        )
 
-        expected = normalize_label(expected_value)
+    name_parts = pattern_name.split("_")
 
-        if expected not in ("Cross", "X", "UNDECIDED"):
-            raise ValueError(
-                f"지원하지 않는 예상 라벨입니다: {expected_value}"
-            )
+    if len(name_parts) != 3 or name_parts[0] != "size":
+        raise ValueError(
+            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
+        )
+
+    try:
+        size = int(name_parts[1])
+    except ValueError:
+        raise ValueError(
+            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
+        )
+
+    if size <= 0:
+        raise ValueError(
+            f"패턴 크기는 1 이상이어야 합니다: {pattern_name}"
+        )
+
+    size_key = f"size_{size}"
+
+    if size_key not in filters:
+        raise ValueError(
+            f"'{pattern_name}'에 사용할 '{size_key}' 필터가 없습니다."
+        )
+
+    validate_matrix(
+        pattern_data["input"],
+        size,
+        f"{pattern_name} 패턴",
+    )
+
+    expected_value = pattern_data["expected"]
+
+    if not isinstance(expected_value, str):
+        raise ValueError(
+            f"'{pattern_name}'의 'expected'는 문자열이어야 합니다."
+        )
+
+    expected = normalize_label(expected_value)
+
+    if expected not in ("Cross", "X", "UNDECIDED"):
+        raise ValueError(
+            f"지원하지 않는 예상 라벨입니다: {expected_value}"
+        )
+
+    return size_key
 
 
 def read_matrix(name: str, size: int) -> list[list[float]]:
@@ -289,9 +293,20 @@ def run_json_mode() -> None:
     execution_times = {}
 
     for pattern_name, pattern_data in patterns.items():
-        name_parts = pattern_name.split("_")
-        size_key = f"{name_parts[0]}_{name_parts[1]}"
-        size = int(name_parts[1])
+        try:
+            size_key = validate_pattern(
+                pattern_name,
+                pattern_data,
+                filters,
+            )
+        except ValueError as error:
+            print(f"\n[{pattern_name}]")
+            print(f"오류: {error}")
+            print("결과: FAIL")
+            fail_count += 1
+            continue
+
+        size = int(size_key.split("_")[1])
 
         filter_data = filters[size_key]
 
