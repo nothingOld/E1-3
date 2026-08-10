@@ -266,6 +266,9 @@ def run_json_mode() -> None:
     filters = data["filters"]
     patterns = data["patterns"]
 
+    pass_count = 0
+    fail_count = 0
+
     for pattern_name, pattern_data in patterns.items():
         name_parts = pattern_name.split("_")
         size_key = f"{name_parts[0]}_{name_parts[1]}"
@@ -284,7 +287,7 @@ def run_json_mode() -> None:
         prediction = classify_scores(score_cross, score_x)
         is_correct = expected == prediction
 
-        print(f"\n패턴: {pattern_name}")
+        print(f"\n[{pattern_name}]")
         print(f"Cross MAC 점수: {score_cross}")
         print(f"X MAC 점수: {score_x}")
         print(f"예상 결과: {expected}")
@@ -292,8 +295,17 @@ def run_json_mode() -> None:
 
         if is_correct:
             print("결과: PASS")
+            pass_count += 1
         else:
             print("결과: FAIL")
+            fail_count += 1
+
+    total_count = pass_count + fail_count
+
+    print("\n=== 전체 실행 결과 ===")
+    print(f"전체 패턴 수: {total_count}")
+    print(f"PASS: {pass_count}")
+    print(f"FAIL: {fail_count}")
 
 
 def main() -> None:
