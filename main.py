@@ -352,20 +352,24 @@ def run_json_mode() -> None:
 
 def main() -> None:
     """Runs the Mini NPU simulator."""
-    print("1. 사용자 입력 모드")
-    print("2. JSON 파일 모드")
+    try:
+        print("1. 사용자 입력 모드")
+        print("2. JSON 파일 모드")
 
-    choice = input("모드를 선택하세요: ").strip()
+        choice = input("모드를 선택하세요: ").strip()
 
-    if choice == "1":
-        run_user_input_mode()
-    elif choice == "2":
-        try:
-            run_json_mode()
-        except ValueError as error:
-            print(f"오류: {error}")
-    else:
-        print("올바른 모드를 선택하세요.")
+        if choice == "1":
+            run_user_input_mode()
+        elif choice == "2":
+            try:
+                run_json_mode()
+            except ValueError as error:
+                print(f"오류: {error}")
+        else:
+            print("올바른 모드를 선택하세요.")
+
+    except (KeyboardInterrupt, EOFError):
+        print("\n프로그램을 종료합니다.")
 
 
 if __name__ == "__main__":
