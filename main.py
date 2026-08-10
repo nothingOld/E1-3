@@ -1,7 +1,14 @@
 import json
-
+import time
 
 EPSILON = 1e-9  # 1e-9 = 0.000000001
+
+LABEL_MAP = {
+    "+": "Cross",
+    "cross": "Cross",
+    "x": "X",
+    "undecided": "UNDECIDED",
+}
 
 
 def load_data(file_path: str) -> dict:
@@ -18,17 +25,7 @@ def load_data(file_path: str) -> dict:
 def normalize_label(label: str) -> str:
     """Normalizes a classification label."""
     normalized_label = label.strip().lower()
-
-    if normalized_label == "cross":
-        return "Cross"
-
-    if normalized_label == "x":
-        return "X"
-
-    if normalized_label == "undecided":
-        return "UNDECIDED"
-
-    return label
+    return LABEL_MAP.get(normalized_label, label)
 
 
 def validate_matrix(matrix: list, size: int, name: str) -> None:
@@ -228,6 +225,22 @@ def mac(
     return total
 
 
+def measure_mac_time(
+    pattern: list[list[float]],
+    filter_matrix: list[list[float]],
+    repeat: int = 1000,
+) -> float:
+    """Measures the average MAC execution time."""
+    start_time = time.perf_counter()
+
+    for _ in range(repeat):
+        mac(pattern, filter_matrix)
+
+    end_time = time.perf_counter()
+
+    return (end_time - start_time) / repeat
+
+
 def classify_scores(score_cross: float, score_x: float) -> str:
     """Classifies a pattern based on two MAC scores."""
     # 두 점수의 차이를 비교하므로 절댓값을 사용한다.
@@ -253,9 +266,14 @@ def run_user_input_mode() -> None:
 
     prediction = classify_scores(score_a, score_b)
 
+    time_a = measure_mac_time(pattern, filter_a)
+    time_b = measure_mac_time(pattern, filter_b)
+    average_time = (time_a + time_b) / 2
+
     print(f"필터 A MAC 점수: {score_a}")
     print(f"필터 B MAC 점수: {score_b}")
     print(f"판정 결과: {prediction}")
+    print(f"평균 MAC 실행 시간: {average_time:.9f}초")
 
 
 def run_json_mode() -> None:
@@ -268,10 +286,12 @@ def run_json_mode() -> None:
 
     pass_count = 0
     fail_count = 0
+    execution_times = {}
 
     for pattern_name, pattern_data in patterns.items():
         name_parts = pattern_name.split("_")
         size_key = f"{name_parts[0]}_{name_parts[1]}"
+        size = int(name_parts[1])
 
         filter_data = filters[size_key]
 
@@ -287,11 +307,21 @@ def run_json_mode() -> None:
         prediction = classify_scores(score_cross, score_x)
         is_correct = expected == prediction
 
+        time_cross = measure_mac_time(pattern, cross_filter)
+        time_x = measure_mac_time(pattern, x_filter)
+        average_time = (time_cross + time_x) / 2
+
+        if size not in execution_times:
+            execution_times[size] = []
+
+        execution_times[size].append(average_time)
+
         print(f"\n[{pattern_name}]")
         print(f"Cross MAC 점수: {score_cross}")
         print(f"X MAC 점수: {score_x}")
         print(f"예상 결과: {expected}")
         print(f"판정 결과: {prediction}")
+        print(f"평균 MAC 실행 시간: {average_time:.9f}초")
 
         if is_correct:
             print("결과: PASS")
@@ -306,6 +336,18 @@ def run_json_mode() -> None:
     print(f"전체 패턴 수: {total_count}")
     print(f"PASS: {pass_count}")
     print(f"FAIL: {fail_count}")
+
+    print("\n=== 크기별 MAC 실행 시간 ===")
+
+    for size in sorted(execution_times):
+        times = execution_times[size]
+        average_time = sum(times) / len(times)
+
+        print(
+            f"{size}x{size}: "
+            f"{average_time:.9f}초 "
+            f"(연산 요소 수: {size ** 2})"
+        )
 
 
 def main() -> None:
