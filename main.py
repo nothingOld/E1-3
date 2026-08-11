@@ -16,6 +16,294 @@ LABEL_MAP = {
 DATA_FILE_PATH = "data.json"
 
 
+def main() -> None:
+    """Runs the Mini NPU simulator."""
+    generated_patterns = None
+
+    while True:
+        try:
+            print("\n=== Mini NPU Simulator ===")
+            print()
+            print("1. 사용자 입력 모드 (3x3)")
+            print("2. data.json 분석")
+            print("3. 패턴 생성기 (보너스 2)")
+            print("0. 종료")
+
+            choice = input("모드를 선택하세요: ").strip()
+
+            if choice == "1":
+                run_user_input_mode(generated_patterns)
+            elif choice == "2":
+                run_json_mode()
+            elif choice == "3":
+                generated_patterns = run_pattern_generator_mode()
+            elif choice == "0":
+                print("프로그램을 종료합니다.")
+                return
+            else:
+                print("올바른 모드를 선택하세요.")
+
+        except ValueError as error:
+            print(f"오류: {error}")
+        except (KeyboardInterrupt, EOFError):
+            print("\n프로그램을 종료합니다.")
+            return
+
+
+def run_user_input_mode(
+    generated_patterns=None,
+) -> None:
+    """Runs the simulator with user-entered 3x3 filters and pattern."""
+    size = 3
+
+    print("\n=== 사용자 입력 모드 ===")
+
+    filter_a = read_matrix("필터 A", size)
+    print("✓ 필터 A 저장 완료")
+
+    filter_b = read_matrix("필터 B", size)
+    print("✓ 필터 B 저장 완료")
+
+    if (
+        generated_patterns is not None
+        and generated_patterns["size"] == size
+    ):
+        while True:
+            print("\n패턴 입력 방법을 선택하세요.")
+            print("1. 생성된 Cross 패턴")
+            print("2. 생성된 X 패턴")
+            print("3. 직접 입력")
+
+            pattern_choice = input("선택: ").strip()
+
+            if pattern_choice == "1":
+                pattern = generated_patterns["Cross"]
+                print("✓ 생성된 Cross 패턴을 사용")
+                break
+
+            if pattern_choice == "2":
+                pattern = generated_patterns["X"]
+                print("✓ 생성된 X 패턴을 사용")
+                break
+
+            if pattern_choice == "3":
+                pattern = read_matrix("패턴", size)
+                print("✓ 패턴 저장 완료")
+                break
+
+            print("입력 오류: 1, 2, 3 중 하나를 입력하세요.")
+
+    else:
+        if generated_patterns is not None:
+            generated_size = generated_patterns["size"]
+
+            print(
+                f"현재 생성된 패턴은 "
+                f"{generated_size}x{generated_size}이므로 "
+                "3x3 사용자 입력 모드에서 사용할 수 없습니다."
+            )
+
+        pattern = read_matrix("패턴", size)
+        print("✓ 패턴 저장 완료")
+
+    score_a = mac(pattern, filter_a)
+    score_b = mac(pattern, filter_b)
+
+    prediction = classify_ab(
+        score_a,
+        score_b,
+    )
+
+    print("\n=== MAC 결과 ===")
+    print(f"필터 A MAC 점수: {score_a}")
+    print(f"필터 B MAC 점수: {score_b}")
+
+    if prediction == "UNDECIDED":
+        print(
+            f"판정 결과: 판정 불가 "
+            f"(|A-B| < {EPSILON})"
+        )
+    else:
+        print(f"판정 결과: {prediction}")
+
+    print_performance_table(
+        [(3, pattern, filter_a)]
+    )
+
+
+def run_json_mode() -> None:
+    """Runs the simulator with data loaded from data.json."""
+    data = load_data(DATA_FILE_PATH)
+    validate_data(data)
+
+    filters = data["filters"]
+    patterns = data["patterns"]
+
+    print_filter_load_status(filters)
+
+    print("\n=== 패턴 분석 ===")
+
+    results = []
+
+    for pattern_name, pattern_data in patterns.items():
+        try:
+            (
+                size,
+                pattern,
+                cross_filter,
+                x_filter,
+                expected,
+            ) = validate_pattern_case(
+                pattern_name,
+                pattern_data,
+                filters,
+            )
+
+            score_cross = mac(
+                pattern,
+                cross_filter,
+            )
+            score_x = mac(
+                pattern,
+                x_filter,
+            )
+            prediction = classify_scores(
+                score_cross,
+                score_x,
+            )
+
+            print(f"\n--- {pattern_name} ---")
+            print(f"크기: {size}x{size}")
+            print(f"Cross 점수: {score_cross}")
+            print(f"X 점수: {score_x}")
+            print(f"판정: {prediction}")
+            print(f"expected: {expected}")
+
+            if prediction == expected:
+                print("결과: PASS")
+                results.append(
+                    {
+                        "case_id": pattern_name,
+                        "status": "PASS",
+                        "reason": "",
+                    }
+                )
+            else:
+                if prediction == "UNDECIDED":
+                    reason = (
+                        "동점(UNDECIDED) 처리 규칙에 따라 "
+                        f"expected {expected}와 불일치"
+                    )
+                else:
+                    reason = (
+                        f"판정 {prediction}이 "
+                        f"expected {expected}와 불일치"
+                    )
+
+                print(f"결과: FAIL ({reason})")
+                results.append(
+                    {
+                        "case_id": pattern_name,
+                        "status": "FAIL",
+                        "reason": reason,
+                    }
+                )
+
+        except ValueError as error:
+            reason = str(error)
+
+            print(f"\n--- {pattern_name} ---")
+            print(f"결과: FAIL ({reason})")
+
+            results.append(
+                {
+                    "case_id": pattern_name,
+                    "status": "FAIL",
+                    "reason": reason,
+                }
+            )
+
+    performance_cases = []
+
+    for size in PERFORMANCE_SIZES:
+        cross_pattern = generate_cross(size)
+        performance_cases.append(
+            (
+                size,
+                cross_pattern,
+                cross_pattern,
+            )
+        )
+
+    print_performance_table(performance_cases)
+    print_optimization_comparison()
+    print_result_summary(results)
+
+
+def run_pattern_generator_mode():
+    """Generates and returns N x N Cross and X patterns."""
+    print("\n=== 보너스 2: 패턴 생성기 ===")
+
+    while True:
+        user_input = input(
+            "생성할 패턴 크기 N을 입력하세요: "
+        ).strip()
+
+        try:
+            size = int(user_input)
+        except ValueError:
+            print(
+                "입력 오류: 패턴 크기는 정수로 입력하세요."
+            )
+            continue
+
+        if size <= 0:
+            print(
+                "입력 오류: 패턴 크기는 1 이상이어야 합니다."
+            )
+            continue
+
+        break
+
+    cross_pattern = generate_cross(size)
+    x_pattern = generate_x(size)
+
+    print(f"\n{size}x{size} Cross 패턴")
+    print_matrix(cross_pattern)
+
+    print(f"\n{size}x{size} X 패턴")
+    print_matrix(x_pattern)
+
+    cross_time = measure_mac_time(
+        mac,
+        cross_pattern,
+        cross_pattern,
+    )
+    x_time = measure_mac_time(
+        mac,
+        x_pattern,
+        x_pattern,
+    )
+
+    print("\n=== 생성 패턴 성능 분석 ===")
+    print(
+        f"Cross {size}x{size}: "
+        f"{cross_time:.6f} ms "
+        f"(연산 횟수: {size ** 2})"
+    )
+    print(
+        f"X {size}x{size}: "
+        f"{x_time:.6f} ms "
+        f"(연산 횟수: {size ** 2})"
+    )
+
+    return {
+        "size": size,
+        "Cross": cross_pattern,
+        "X": x_pattern,
+    }
+
+
 def load_data(file_path: str) -> dict:
     """Loads JSON data from a file."""
     try:
@@ -286,6 +574,33 @@ def mac_1d(
 
     return total
 
+def classify_scores(
+    score_cross: float,
+    score_x: float,
+) -> str:
+    """Classifies Cross/X scores using epsilon comparison."""
+    if abs(score_cross - score_x) < EPSILON:
+        return "UNDECIDED"
+
+    if score_cross > score_x:
+        return "Cross"
+
+    return "X"
+
+
+def classify_ab(
+    score_a: float,
+    score_b: float,
+) -> str:
+    """Classifies user-entered filter A/B scores."""
+    if abs(score_a - score_b) < EPSILON:
+        return "UNDECIDED"
+
+    if score_a > score_b:
+        return "A"
+
+    return "B"
+
 
 def generate_cross(size: int) -> list:
     """Generates an N x N Cross pattern."""
@@ -337,34 +652,6 @@ def measure_mac_time(
     end_time = time.perf_counter()
 
     return ((end_time - start_time) / repeat) * 1000
-
-
-def classify_scores(
-    score_cross: float,
-    score_x: float,
-) -> str:
-    """Classifies Cross/X scores using epsilon comparison."""
-    if abs(score_cross - score_x) < EPSILON:
-        return "UNDECIDED"
-
-    if score_cross > score_x:
-        return "Cross"
-
-    return "X"
-
-
-def classify_ab(
-    score_a: float,
-    score_b: float,
-) -> str:
-    """Classifies user-entered filter A/B scores."""
-    if abs(score_a - score_b) < EPSILON:
-        return "UNDECIDED"
-
-    if score_a > score_b:
-        return "A"
-
-    return "B"
 
 
 def print_matrix(matrix: list) -> None:
@@ -506,294 +793,6 @@ def print_result_summary(
             f"- {result['case_id']}: "
             f"{result['reason']}"
         )
-
-
-def run_user_input_mode(
-    generated_patterns=None,
-) -> None:
-    """Runs the simulator with user-entered 3x3 filters and pattern."""
-    size = 3
-
-    print("\n=== 사용자 입력 모드 ===")
-
-    filter_a = read_matrix("필터 A", size)
-    print("✓ 필터 A 저장 완료")
-
-    filter_b = read_matrix("필터 B", size)
-    print("✓ 필터 B 저장 완료")
-
-    if (
-        generated_patterns is not None
-        and generated_patterns["size"] == size
-    ):
-        while True:
-            print("\n패턴 입력 방법을 선택하세요.")
-            print("1. 생성된 Cross 패턴")
-            print("2. 생성된 X 패턴")
-            print("3. 직접 입력")
-
-            pattern_choice = input("선택: ").strip()
-
-            if pattern_choice == "1":
-                pattern = generated_patterns["Cross"]
-                print("✓ 생성된 Cross 패턴을 사용")
-                break
-
-            if pattern_choice == "2":
-                pattern = generated_patterns["X"]
-                print("✓ 생성된 X 패턴을 사용")
-                break
-
-            if pattern_choice == "3":
-                pattern = read_matrix("패턴", size)
-                print("✓ 패턴 저장 완료")
-                break
-
-            print("입력 오류: 1, 2, 3 중 하나를 입력하세요.")
-
-    else:
-        if generated_patterns is not None:
-            generated_size = generated_patterns["size"]
-
-            print(
-                f"현재 생성된 패턴은 "
-                f"{generated_size}x{generated_size}이므로 "
-                "3x3 사용자 입력 모드에서 사용할 수 없습니다."
-            )
-
-        pattern = read_matrix("패턴", size)
-        print("✓ 패턴 저장 완료")
-
-    score_a = mac(pattern, filter_a)
-    score_b = mac(pattern, filter_b)
-
-    prediction = classify_ab(
-        score_a,
-        score_b,
-    )
-
-    print("\n=== MAC 결과 ===")
-    print(f"필터 A MAC 점수: {score_a}")
-    print(f"필터 B MAC 점수: {score_b}")
-
-    if prediction == "UNDECIDED":
-        print(
-            f"판정 결과: 판정 불가 "
-            f"(|A-B| < {EPSILON})"
-        )
-    else:
-        print(f"판정 결과: {prediction}")
-
-    print_performance_table(
-        [(3, pattern, filter_a)]
-    )
-
-
-def run_json_mode() -> None:
-    """Runs the simulator with data loaded from data.json."""
-    data = load_data(DATA_FILE_PATH)
-    validate_data(data)
-
-    filters = data["filters"]
-    patterns = data["patterns"]
-
-    print_filter_load_status(filters)
-
-    print("\n=== 패턴 분석 ===")
-
-    results = []
-
-    for pattern_name, pattern_data in patterns.items():
-        try:
-            (
-                size,
-                pattern,
-                cross_filter,
-                x_filter,
-                expected,
-            ) = validate_pattern_case(
-                pattern_name,
-                pattern_data,
-                filters,
-            )
-
-            score_cross = mac(
-                pattern,
-                cross_filter,
-            )
-            score_x = mac(
-                pattern,
-                x_filter,
-            )
-            prediction = classify_scores(
-                score_cross,
-                score_x,
-            )
-
-            print(f"\n--- {pattern_name} ---")
-            print(f"크기: {size}x{size}")
-            print(f"Cross 점수: {score_cross}")
-            print(f"X 점수: {score_x}")
-            print(f"판정: {prediction}")
-            print(f"expected: {expected}")
-
-            if prediction == expected:
-                print("결과: PASS")
-                results.append(
-                    {
-                        "case_id": pattern_name,
-                        "status": "PASS",
-                        "reason": "",
-                    }
-                )
-            else:
-                if prediction == "UNDECIDED":
-                    reason = (
-                        "동점(UNDECIDED) 처리 규칙에 따라 "
-                        f"expected {expected}와 불일치"
-                    )
-                else:
-                    reason = (
-                        f"판정 {prediction}이 "
-                        f"expected {expected}와 불일치"
-                    )
-
-                print(f"결과: FAIL ({reason})")
-                results.append(
-                    {
-                        "case_id": pattern_name,
-                        "status": "FAIL",
-                        "reason": reason,
-                    }
-                )
-
-        except ValueError as error:
-            reason = str(error)
-
-            print(f"\n--- {pattern_name} ---")
-            print(f"결과: FAIL ({reason})")
-
-            results.append(
-                {
-                    "case_id": pattern_name,
-                    "status": "FAIL",
-                    "reason": reason,
-                }
-            )
-
-    performance_cases = []
-
-    for size in PERFORMANCE_SIZES:
-        cross_pattern = generate_cross(size)
-        performance_cases.append(
-            (
-                size,
-                cross_pattern,
-                cross_pattern,
-            )
-        )
-
-    print_performance_table(performance_cases)
-    print_optimization_comparison()
-    print_result_summary(results)
-
-
-def run_pattern_generator_mode():
-    """Generates and returns N x N Cross and X patterns."""
-    print("\n=== 보너스 2: 패턴 생성기 ===")
-
-    while True:
-        user_input = input(
-            "생성할 패턴 크기 N을 입력하세요: "
-        ).strip()
-
-        try:
-            size = int(user_input)
-        except ValueError:
-            print(
-                "입력 오류: 패턴 크기는 정수로 입력하세요."
-            )
-            continue
-
-        if size <= 0:
-            print(
-                "입력 오류: 패턴 크기는 1 이상이어야 합니다."
-            )
-            continue
-
-        break
-
-    cross_pattern = generate_cross(size)
-    x_pattern = generate_x(size)
-
-    print(f"\n{size}x{size} Cross 패턴")
-    print_matrix(cross_pattern)
-
-    print(f"\n{size}x{size} X 패턴")
-    print_matrix(x_pattern)
-
-    cross_time = measure_mac_time(
-        mac,
-        cross_pattern,
-        cross_pattern,
-    )
-    x_time = measure_mac_time(
-        mac,
-        x_pattern,
-        x_pattern,
-    )
-
-    print("\n=== 생성 패턴 성능 분석 ===")
-    print(
-        f"Cross {size}x{size}: "
-        f"{cross_time:.6f} ms "
-        f"(연산 횟수: {size ** 2})"
-    )
-    print(
-        f"X {size}x{size}: "
-        f"{x_time:.6f} ms "
-        f"(연산 횟수: {size ** 2})"
-    )
-
-    return {
-        "size": size,
-        "Cross": cross_pattern,
-        "X": x_pattern,
-    }
-
-
-def main() -> None:
-    """Runs the Mini NPU simulator."""
-    generated_patterns = None
-
-    while True:
-        try:
-            print("\n=== Mini NPU Simulator ===")
-            print()
-            print("1. 사용자 입력 모드 (3x3)")
-            print("2. data.json 분석")
-            print("3. 패턴 생성기 (보너스 2)")
-            print("0. 종료")
-
-            choice = input("모드를 선택하세요: ").strip()
-
-            if choice == "1":
-                run_user_input_mode(generated_patterns)
-            elif choice == "2":
-                run_json_mode()
-            elif choice == "3":
-                generated_patterns = run_pattern_generator_mode()
-            elif choice == "0":
-                print("프로그램을 종료합니다.")
-                return
-            else:
-                print("올바른 모드를 선택하세요.")
-
-        except ValueError as error:
-            print(f"오류: {error}")
-        except (KeyboardInterrupt, EOFError):
-            print("\n프로그램을 종료합니다.")
-            return
 
 
 if __name__ == "__main__":
