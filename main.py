@@ -229,6 +229,29 @@ def mac(
     return total
 
 
+def flatten_matrix(matrix: list[list[float]]) -> list[float]:
+    """Flattens a 2D matrix into a 1D list."""
+    flattened = []
+
+    for row in matrix:
+        flattened.extend(row)
+
+    return flattened
+
+
+def mac_1d(
+    pattern: list[float],
+    filter_values: list[float],
+) -> float:
+    """Calculates the MAC score of flattened 1D data."""
+    total = 0.0
+
+    for index in range(len(pattern)):
+        total += pattern[index] * filter_values[index]
+
+    return total
+
+
 def measure_mac_time(
     pattern: list[list[float]],
     filter_matrix: list[list[float]],
@@ -319,6 +342,19 @@ def run_json_mode() -> None:
         score_cross = mac(pattern, cross_filter)
         score_x = mac(pattern, x_filter)
 
+        flattened_pattern = flatten_matrix(pattern)
+        flattened_cross_filter = flatten_matrix(cross_filter)
+        flattened_x_filter = flatten_matrix(x_filter)
+
+        flat_score_cross = mac_1d(
+            flattened_pattern,
+            flattened_cross_filter,
+        )
+        flat_score_x = mac_1d(
+            flattened_pattern,
+            flattened_x_filter,
+        )
+
         prediction = classify_scores(score_cross, score_x)
         is_correct = expected == prediction
 
@@ -334,6 +370,8 @@ def run_json_mode() -> None:
         print(f"\n[{pattern_name}]")
         print(f"Cross MAC 점수: {score_cross}")
         print(f"X MAC 점수: {score_x}")
+        print(f"1D Cross MAC 점수: {flat_score_cross}")
+        print(f"1D X MAC 점수: {flat_score_x}")
         print(f"예상 결과: {expected}")
         print(f"판정 결과: {prediction}")
         print(f"평균 MAC 실행 시간: {average_time:.9f}초")
