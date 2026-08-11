@@ -252,6 +252,76 @@ def mac_1d(
     return total
 
 
+def sliding_window_classify(
+    input_matrix: list[list[float]],
+    cross_filter: list[list[float]],
+    x_filter: list[list[float]],
+) -> list[tuple[int, int, float, float, str]]:
+    """Classifies each window of an input matrix using MAC scores."""
+    if not input_matrix or not input_matrix[0]:
+        raise ValueError("Sliding Window 입력 행렬이 비어 있습니다.")
+
+    filter_size = len(cross_filter)
+
+    if filter_size == 0:
+        raise ValueError("Sliding Window 필터가 비어 있습니다.")
+
+    if len(x_filter) != filter_size:
+        raise ValueError("Cross 필터와 X 필터의 크기가 다릅니다.")
+
+    input_rows = len(input_matrix)
+    input_columns = len(input_matrix[0])
+
+    for row in input_matrix:
+        if len(row) != input_columns:
+            raise ValueError(
+                "Sliding Window 입력 행렬의 열 크기가 일정하지 않습니다."
+            )
+
+    if input_rows < filter_size or input_columns < filter_size:
+        raise ValueError(
+            "입력 행렬은 필터보다 크거나 같아야 합니다."
+        )
+
+    results = []
+
+    row_count = input_rows - filter_size + 1
+    column_count = input_columns - filter_size + 1
+
+    for start_row in range(row_count):
+        for start_column in range(column_count):
+            window = []
+
+            for row_index in range(
+                start_row,
+                start_row + filter_size,
+            ):
+                row = input_matrix[row_index][
+                    start_column:start_column + filter_size
+                ]
+                window.append(row)
+
+            score_cross = mac(window, cross_filter)
+            score_x = mac(window, x_filter)
+
+            prediction = classify_scores(
+                score_cross,
+                score_x,
+            )
+
+            results.append(
+                (
+                    start_row,
+                    start_column,
+                    score_cross,
+                    score_x,
+                    prediction,
+                )
+            )
+
+    return results
+
+
 def measure_mac_time(
     pattern: list[list[float]],
     filter_matrix: list[list[float]],
