@@ -78,30 +78,6 @@ def validate_matrix(matrix: object, size: int, name: str) -> None:
                 )
 
 
-def parse_pattern_size(pattern_name: str) -> int:
-    """Extracts the matrix size from a pattern key."""
-    name_parts = pattern_name.split("_")
-
-    if len(name_parts) != 3 or name_parts[0] != "size":
-        raise ValueError(
-            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
-        )
-
-    try:
-        size = int(name_parts[1])
-    except ValueError as error:
-        raise ValueError(
-            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
-        ) from error
-
-    if size <= 0:
-        raise ValueError(
-            f"패턴 크기는 1 이상이어야 합니다: {pattern_name}"
-        )
-
-    return size
-
-
 def get_filters_for_size(
     filters: dict,
     size: int,
@@ -177,7 +153,25 @@ def validate_pattern_case(
             f"'{pattern_name}'에 'expected' 키가 없습니다."
         )
 
-    size = parse_pattern_size(pattern_name)
+    name_parts = pattern_name.split("_")
+
+    if len(name_parts) != 3 or name_parts[0] != "size":
+        raise ValueError(
+            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
+        )
+
+    try:
+        size = int(name_parts[1])
+    except ValueError as error:
+        raise ValueError(
+            f"지원하지 않는 패턴 이름 형식입니다: {pattern_name}"
+        ) from error
+
+    if size <= 0:
+        raise ValueError(
+            f"패턴 크기는 1 이상이어야 합니다: {pattern_name}"
+        )
+
     pattern = pattern_data["input"]
 
     validate_matrix(
@@ -329,31 +323,16 @@ def generate_x(size: int) -> list:
 
 
 def measure_mac_time(
-    pattern: list,
-    filter_matrix: list,
-    repeat: int = REPEAT_COUNT,
-) -> float:
-    """Measures average 2D MAC execution time in milliseconds."""
-    start_time = time.perf_counter()
-
-    for _ in range(repeat):
-        mac(pattern, filter_matrix)
-
-    end_time = time.perf_counter()
-
-    return ((end_time - start_time) / repeat) * 1000
-
-
-def measure_mac_1d_time(
+    mac_function,
     pattern: list,
     filter_values: list,
     repeat: int = REPEAT_COUNT,
 ) -> float:
-    """Measures average 1D MAC execution time in milliseconds."""
+    """Measures average MAC execution time in milliseconds."""
     start_time = time.perf_counter()
 
     for _ in range(repeat):
-        mac_1d(pattern, filter_values)
+        mac_function(pattern, filter_values)
 
     end_time = time.perf_counter()
 
@@ -417,6 +396,7 @@ def print_performance_table(
 
     for size, pattern, filter_matrix in performance_cases:
         average_time = measure_mac_time(
+            mac,
             pattern,
             filter_matrix,
         )
@@ -426,24 +406,6 @@ def print_performance_table(
             f"{average_time:>16.6f}"
             f"{size ** 2:>16}"
         )
-
-
-def build_default_performance_cases(
-) -> list:
-    """Builds reusable 3x3, 5x5, 13x13, and 25x25 cases."""
-    performance_cases = []
-
-    for size in PERFORMANCE_SIZES:
-        cross_pattern = generate_cross(size)
-        performance_cases.append(
-            (
-                size,
-                cross_pattern,
-                cross_pattern,
-            )
-        )
-
-    return performance_cases
 
 
 def print_optimization_comparison() -> None:
@@ -471,10 +433,12 @@ def print_optimization_comparison() -> None:
         score_1d = mac_1d(pattern_1d, filter_1d)
 
         time_2d = measure_mac_time(
+            mac,
             pattern_2d,
             filter_2d,
         )
-        time_1d = measure_mac_1d_time(
+        time_1d = measure_mac_time(
+            mac_1d,
             pattern_1d,
             filter_1d,
         )
@@ -508,22 +472,6 @@ def print_filter_load_status(
             print(
                 f"✓ size_{size} 필터 로드 완료 (Cross, X)"
             )
-
-
-def build_failure_reason(
-    prediction: str,
-    expected: str,
-) -> str:
-    """Builds a failure reason for a valid analyzed case."""
-    if prediction == "UNDECIDED":
-        return (
-            "동점(UNDECIDED) 처리 규칙에 따라 "
-            f"expected {expected}와 불일치"
-        )
-
-    return (
-        f"판정 {prediction}이 expected {expected}와 불일치"
-    )
 
 
 def print_result_summary(
@@ -699,10 +647,17 @@ def run_json_mode() -> None:
                     }
                 )
             else:
-                reason = build_failure_reason(
-                    prediction,
-                    expected,
-                )
+                if prediction == "UNDECIDED":
+                    reason = (
+                        "동점(UNDECIDED) 처리 규칙에 따라 "
+                        f"expected {expected}와 불일치"
+                    )
+                else:
+                    reason = (
+                        f"판정 {prediction}이 "
+                        f"expected {expected}와 불일치"
+                    )
+
                 print(f"결과: FAIL ({reason})")
                 results.append(
                     {
@@ -726,7 +681,19 @@ def run_json_mode() -> None:
                 }
             )
 
-    print_performance_table(build_default_performance_cases())
+    performance_cases = []
+
+    for size in PERFORMANCE_SIZES:
+        cross_pattern = generate_cross(size)
+        performance_cases.append(
+            (
+                size,
+                cross_pattern,
+                cross_pattern,
+            )
+        )
+
+    print_performance_table(performance_cases)
     print_optimization_comparison()
     print_result_summary(results)
 
@@ -766,10 +733,12 @@ def run_pattern_generator_mode():
     print_matrix(x_pattern)
 
     cross_time = measure_mac_time(
+        mac,
         cross_pattern,
         cross_pattern,
     )
     x_time = measure_mac_time(
+        mac,
         x_pattern,
         x_pattern,
     )
